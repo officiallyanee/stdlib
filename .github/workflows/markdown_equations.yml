@@ -79,8 +79,21 @@ jobs:
           node-version: '20' # 'lts/*'
         timeout-minutes: 5
 
+      # Cache dependencies:
+      - name: 'Cache dependencies'
+        # Pin action to full length commit SHA
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: cache
+        with:
+          path: |
+            ${{ github.workspace }}/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       # Install dependencies (accounting for possible network failures, etc, when installing node module dependencies):
       - name: 'Install dependencies'
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           make install-node-modules || make install-node-modules || make install-node-modules
         timeout-minutes: 15
@@ -177,6 +190,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.STDLIB_BOT_PAT_REPO_WRITE || secrets.GITHUB_TOKEN }}
         run: |
+          rm -rf .git/hooks
           gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/markdown-insert-equations 2>/dev/null || true
         timeout-minutes: 5
 
