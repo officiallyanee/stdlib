@@ -214,8 +214,7 @@ jobs:
           labels: |
             documentation
             automated-pr
-          team-reviewers: |
-            reviewers
+          team-reviewers: ${{ github.repository == 'stdlib-js/stdlib' && 'reviewers' || '' }}
           branch: markdown-insert-equations
           delete-branch: true
 
