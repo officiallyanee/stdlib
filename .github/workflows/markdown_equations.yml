@@ -194,6 +194,8 @@ jobs:
           git fetch origin markdown-insert-equations 2>/dev/null || true
           rm -rf .git/hooks
           gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/markdown-insert-equations 2>/dev/null || true
+          # Delete the local tracking branch so that --force-with-lease does not reject the push due to stale info:
+          git branch -dr origin/markdown-insert-equations 2>/dev/null || true
         timeout-minutes: 5
 
       # Create a pull request with the updated equations:
