@@ -31,7 +31,9 @@ on:
 # Global permissions:
 permissions:
   # Allow read-only access to the repository contents:
-  contents: read
+  contents: write
+  # Allow creating pull requests:
+  pull-requests: write
 
 # Workflow jobs:
 jobs:
