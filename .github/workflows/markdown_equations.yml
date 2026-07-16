@@ -175,7 +175,7 @@ jobs:
       - name: 'Delete remote PR branch'
         if: steps.svg-equations.outputs.changed == 'true' || steps.equation-elements.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.STDLIB_BOT_PAT_REPO_WRITE }}
+          GH_TOKEN: ${{ secrets.STDLIB_BOT_PAT_REPO_WRITE || secrets.GITHUB_TOKEN }}
         run: |
           gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/markdown-insert-equations 2>/dev/null || true
         timeout-minutes: 5
