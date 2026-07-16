@@ -43,7 +43,7 @@ jobs:
     name: 'Update equations'
 
     # Ensure the job does not run on forks:
-    if: github.repository == 'stdlib-js/stdlib'
+    if: github.repository == 'officiallyanee/stdlib' || github.repository == 'stdlib-js/stdlib'
 
     # Define the type of virtual host machine:
     runs-on: ubuntu-latest
@@ -174,9 +174,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.STDLIB_BOT_PAT_REPO_WRITE }}
         run: |
-          # Fetch the branch first so that --force-with-lease in the subsequent push has a local tracking reference and can verify the remote state:
-          git fetch origin markdown-insert-equations 2>/dev/null || true
-          gh api -X DELETE repos/stdlib-js/stdlib/git/refs/heads/markdown-insert-equations 2>/dev/null || true
+          gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/markdown-insert-equations 2>/dev/null || true
         timeout-minutes: 5
 
       # Create a pull request with the updated equations:
