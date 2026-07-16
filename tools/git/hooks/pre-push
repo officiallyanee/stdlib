@@ -77,6 +77,13 @@ backup_commit_file="${cache_dir}/last_commit_message.backup"
 # Define the path to a file for storing a new (i.e., amended) commit message:
 new_commit_file="${cache_dir}/new_commit_message.txt"
 
+# Capture all refs being pushed from stdin (git passes them as '<local-ref> <local-sha> <remote-ref> <remote-sha>' lines):
+GIT_PUSH_STDIN=$(cat)
+
+# Derive the name of the branch being pushed from the first stdin line (e.g., refs/heads/foo -> foo):
+GIT_PUSH_BRANCH_REF=$(echo "${GIT_PUSH_STDIN}" | head -n 1 | cut -d' ' -f1)
+GIT_PUSH_BRANCH="${GIT_PUSH_BRANCH_REF#refs/heads/}"
+
 
 # FUNCTIONS #
 
@@ -171,20 +178,26 @@ amend_commit() {
 
 # Checks if commits exist to push, as `git push` will execute regardless of whether commits exist to push or not.
 has_commits() {
-	local remote_ref="${remote}/${GIT_CURRENT_BRANCH}"
+	local remote_tracking_ref
+	local push_branch
 	local commits
+
+	# Use the branch actually being pushed (from stdin), not HEAD, so that automation pushing
+	# a branch while checked out to a different branch is validated correctly:
+	push_branch="${GIT_PUSH_BRANCH}"
+	remote_tracking_ref="${remote}/${push_branch}"
 
 	echo 'Checking if remote branch exists...' >&2
 
 	# We use rev-parse to test the actual ref. Directing to /dev/null makes it silent on failure; the exit code is what matters...
-	if git rev-parse --verify "refs/remotes/${remote_ref}" > /dev/null 2>&1; then
+	if git rev-parse --verify "refs/remotes/${remote_tracking_ref}" > /dev/null 2>&1; then
 		echo 'Remote branch exists.' >&2
 		echo 'Checking for commits to push...' >&2
-		commits=$(git log "${remote_ref}..${GIT_CURRENT_BRANCH}" --oneline --)
+		commits=$(git log "${remote_tracking_ref}..${push_branch}" --oneline --)
 	else
 		echo 'Remote branch does not exist.' >&2
 		echo 'Checking for commits to push...' >&2
-		commits=$(git log "${GIT_CURRENT_BRANCH}" --oneline --)
+		commits=$(git log "${push_branch}" --oneline --)
 	fi
 	if [[ -z "${commits}" ]]; then
 		echo 'No commits to push.'
@@ -210,6 +223,7 @@ check_licenses() {
 # Main execution sequence.
 main() {
 	local changed_files
+	local push_branch
 	local files
 
 	init
@@ -225,8 +239,11 @@ main() {
 		on_error 1
 	fi
 
+	# Use the branch actually being pushed as the diff base:
+	push_branch="${GIT_PUSH_BRANCH}"
+
 	# Get the set of changed files (added, copied, modified, and renamed):
-	changed_files=$(git diff --name-only --cached --diff-filter ACMR "${remote}/${GIT_CURRENT_BRANCH}" | sed -e "s#^#${root}\\/#")
+	changed_files=$(git diff --name-only --cached --diff-filter ACMR "${remote}/${push_branch}" | sed -e "s#^#${root}\\/#")
 
 	# Run JavaScript example files:
 	add_task 'run_javascript_examples'
