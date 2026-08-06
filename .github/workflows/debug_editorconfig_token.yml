@@ -1,0 +1,122 @@
+#/
+# @license Apache-2.0
+#
+# Copyright (c) 2026 The Stdlib Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#/
+
+# Temporary diagnostic workflow to verify whether GITHUB_TOKEN is available
+# in scheduled vs manual workflow runs, and how it affects editorconfig-checker
+# binary download rate limiting.
+#
+# REMOVE THIS FILE after investigation is complete.
+
+name: debug_editorconfig_token
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: 'Debug EditorConfig Token'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+
+      - name: 'Install Node.js'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      # Check whether GITHUB_TOKEN is available as an env var automatically:
+      - name: 'Check GITHUB_TOKEN availability'
+        run: |
+          echo "=== GITHUB_TOKEN env var ==="
+          if [ -n "$GITHUB_TOKEN" ]; then
+            echo "GITHUB_TOKEN IS set (length: ${#GITHUB_TOKEN})"
+          else
+            echo "GITHUB_TOKEN is NOT set"
+          fi
+
+          echo ""
+          echo "=== Unauthenticated rate limit (raw IP) ==="
+          curl -s https://api.github.com/rate_limit | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          r = d['rate']
+          print('remaining:', r['remaining'], '/', r['limit'])
+          "
+
+          echo ""
+          echo "=== Authenticated rate limit (using auto GITHUB_TOKEN) ==="
+          if [ -n "$GITHUB_TOKEN" ]; then
+            curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          r = d['rate']
+          print('remaining:', r['remaining'], '/', r['limit'])
+            "
+          else
+            echo "Skipped - token not available"
+          fi
+
+      # Install editorconfig-checker via npm (same as real workflow):
+      - name: 'Install editorconfig-checker'
+        run: npm install editorconfig-checker
+
+      # Test 1: Download binary WITH the auto-injected GITHUB_TOKEN
+      # (no explicit env override - same as lint_changed_files step)
+      - name: 'Test 1 - download binary (token auto-injected, no explicit override)'
+        run: |
+          echo "=== Binary state before ==="
+          ls -la node_modules/editorconfig-checker/bin/ 2>/dev/null || echo "(empty)"
+
+          echo ""
+          echo "=== Running editorconfig-checker (default env) ==="
+          node node_modules/editorconfig-checker/dist/index.js --version
+          echo "Exit: $?"
+
+          echo ""
+          echo "=== Binary state after ==="
+          ls -la node_modules/editorconfig-checker/bin/latest/bin/ 2>/dev/null
+
+      # Test 2: Force unset GITHUB_TOKEN to simulate unauthenticated behaviour
+      - name: 'Test 2 - download binary (GITHUB_TOKEN explicitly unset)'
+        run: |
+          echo "=== Deleting cached binary to force re-download ==="
+          rm -rf node_modules/editorconfig-checker/bin/latest
+
+          echo ""
+          echo "=== Running editorconfig-checker (GITHUB_TOKEN unset) ==="
+          GITHUB_TOKEN="" node node_modules/editorconfig-checker/dist/index.js --version
+          echo "Exit: $?"
+
+      # Check rate limits after both tests:
+      - name: 'Rate limit status after both tests'
+        run: |
+          echo "=== Unauthenticated remaining ==="
+          curl -s https://api.github.com/rate_limit | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          r = d['rate']
+          print('remaining:', r['remaining'], '/', r['limit'])
+          "
